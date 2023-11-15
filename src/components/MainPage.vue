@@ -1,7 +1,7 @@
 <template>
 <v-container class="">
 	<v-responsive class="align-center">
-		<h1 class="text-h2 font-weight-bold">To Do Tasks</h1>
+		<h1 class="text-h2 font-weight-bold">To Do Tasks</h1><p class="pl-2">by Andrew Arciaga</p>
 
 		<div class="py-14" />
 
@@ -14,7 +14,7 @@
 					<template v-slot:append>
 						<v-badge
 							color="info"
-							:content="store.state.tasks.length"
+							:content="store.getters.tasksCount"
 							inline
 							class="counter-badge"
 						>Tasks
@@ -26,7 +26,7 @@
 					<template v-slot:append>
 						<v-badge
 							color="info"
-							:content="task_done_counter"
+							:content="store.getters.tasksDoneCount"
 							inline
 							class="counter-badge"
 						>Tasks Done
@@ -34,14 +34,14 @@
 					</template>
 				</v-btn>
 
-				<v-btn class="tasks-delete-btn" color="red">
+				<v-btn class="tasks-delete-btn" color="red" @click="store.dispatch('deleteAllTasks')">
 					<v-icon
 						icon="mdi-delete"
 					></v-icon>
 					Tasks
 				</v-btn>
 
-				<v-btn class="tasks-delete-btn" color="red" @click="deleteAllTaskDone()">
+				<v-btn class="tasks-delete-btn" color="red" @click="store.dispatch('deleteAllTaskDone')"  v-show="store.getters.tasksDoneCount > 0">
 					<v-icon
 						icon="mdi-delete"
 					></v-icon>
@@ -65,7 +65,7 @@
 										icon="mdi-check"
 										density="compact"
 										color="success"
-										@click="changeTaskStatus(i)"
+										@click="store.dispatch('changeTaskStatus', i)"
 										:class="(task.status.done ? 'disable-check-btn' : '')"
 									>	
 									</v-btn>
@@ -77,7 +77,7 @@
 										density="compact"
 										color="red"
 										class="delete-btn"
-										@click="deleteTask(i)"
+										@click="store.dispatch('deleteTask', i)"
 									>	
 									</v-btn>
 								</v-card-title>
@@ -87,16 +87,13 @@
 				
 				</TransitionGroup>
 			</div>
-
-				<v-spacer></v-spacer>
 				<br>
-
 				<v-text-field
 					v-model="task_name"
 					variant="underlined"
 					label="New Task"
 					append-inner-icon="mdi-plus"
-					@click:append-inner="addTask()"
+					@click:append-inner="store.dispatch('addTask')"
 				></v-text-field>
 			</v-container>
 
@@ -106,13 +103,13 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
-import { createToast } from 'mosha-vue-toastify';
+import { ref } from 'vue'
 import { createStore } from 'vuex'
+import useToast from '../Composables/useToast.js'
 
 const task_name 		= ref('')
 const task_id   		= ref(0)
-const task_done_counter = ref(0)
+const { toast } 		= useToast()
 
 const store = createStore({
 	state: {
@@ -128,54 +125,74 @@ const store = createStore({
 			task_name.value = ''
 			task_id.value = id
 		},
-		deleteTask(state, { key }){
+		deleteTask(state, key){
 			state.tasks.splice(key, 1)
 		},
 		changeTaskStatus(state, { key }){
 			state.tasks[key].status.done = true
 		},
 		deleteAllTaskDone(state){
-			state.tasks.forEach(function(task, index, object) {
-				if (task.status.done === true) {
-					object.splice(index, 1);
-				}
-			});
+			let orig_length  = state.tasks.length
+
+			state.tasks = state.tasks.filter(function(obj) { 
+				return obj.status.done === false;
+			})
+
+			if(state.tasks.length < orig_length){
+				toast(' Tasks Done Deleted Successfully', 'success', 2000 )
+			}else{
+				toast(' No Tasks Done found!', 'danger', 2000 )
+			}
 		},
+		deleteAllTasks(state){
+			if(state.tasks.length == 0){
+				toast(' No Tasks found!', 'danger', 2000 )
+			}else{
+				state.tasks = []
+				toast(' All Tasks Deleted Successfully', 'success', 2000 )
+			}
+
+		},
+	},
+	actions: {
+		addTask({ commit }) {
+			let name = task_name.value
+			if(name == null || name == ''){
+				toast(' Task Name cannot be empty!', 'danger', 2000 )
+			}else{
+				task_id.value++
+				let id = task_id.value
+				commit('addTask', { id, name })
+				toast(' Task Added Successfully!', 'success', 2000 )
+				console.log(store.state)
+			}
+		},
+		deleteTask({ commit }, key) {
+			commit('deleteTask', key)
+			toast(' Task Deleted Successfully!', 'success', 2000 )
+		},
+		changeTaskStatus({ commit }, key) {
+			commit('changeTaskStatus', { key })
+		},
+		deleteAllTaskDone({ commit }) {
+			commit('deleteAllTaskDone')
+		},
+		deleteAllTasks({ commit }) {
+			commit('deleteAllTasks')
+		},
+	},
+	getters: {
+		tasksCount(state) {
+			return state.tasks.length
+		},
+		tasksDoneCount(state) {
+			return state.tasks.filter(function(obj) { 
+				return obj.status.done === true;
+			}).length
+		}
 	}
 })
 
-const toast = (message,type, timer = 2000) => {
-	createToast(message, {
-		type: type,
-		position: 'top-right',
-		timeout: timer,
-		hideProgressBar: true,
-		showIcon: true,
-	})
-}
-
-function addTask(){
-	let name = task_name.value
-	if(name == null || name == ''){
-		toast(' Task Name cannot be empty!', 'danger', 2000 )
-	}else{
-		task_id.value++
-		let id = task_id.value
-		store.commit('addTask', { id, name })
-		console.log(store.state)
-	}
-}
-function deleteTask(key){
-	store.commit('deleteTask', { key })
-}
-
-function changeTaskStatus(key){
-	store.commit('changeTaskStatus', { key })
-}
-
-function deleteAllTaskDone(){
-	store.commit('deleteAllTaskDone')
-}
 </script>
 
 <style>
