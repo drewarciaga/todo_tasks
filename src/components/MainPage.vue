@@ -103,17 +103,29 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, watch, onMounted } from 'vue'
 import { createStore } from 'vuex'
 import useToast from '../Composables/useToast.js'
 
 const task_name 		= ref('')
 const task_id   		= ref(0)
 const { toast } 		= useToast()
+const default_tasks		= ref([])
+
+onMounted(async () => {
+	let storageTasks = window.localStorage.getItem('tasks')
+
+	if(storageTasks == null || storageTasks.length == 0){
+		default_tasks.value = [{ id: task_id.value, name:'First Task', status: { done: false } }]
+	}else{
+		default_tasks.value = JSON.parse(storageTasks)
+		console.log(default_tasks.value)
+	}
+})
 
 const store = createStore({
 	state: {
-		tasks: [{ id: task_id.value, name:'First Task', status: { done: false } }]
+		tasks: default_tasks
 	},
 	mutations: {
 		addTask(state, { id, name }){
@@ -166,19 +178,24 @@ const store = createStore({
 				toast(' Task Added Successfully!', 'success', 2000 )
 				console.log(store.state)
 			}
+			window.localStorage.setItem('tasks', JSON.stringify(store.state.tasks))
 		},
 		deleteTask({ commit }, key) {
 			commit('deleteTask', key)
 			toast(' Task Deleted Successfully!', 'success', 2000 )
+			window.localStorage.setItem('tasks', JSON.stringify(store.state.tasks))
 		},
 		changeTaskStatus({ commit }, key) {
 			commit('changeTaskStatus', { key })
+			window.localStorage.setItem('tasks', JSON.stringify(store.state.tasks))
 		},
 		deleteAllTaskDone({ commit }) {
 			commit('deleteAllTaskDone')
+			window.localStorage.setItem('tasks', JSON.stringify(store.state.tasks))
 		},
 		deleteAllTasks({ commit }) {
 			commit('deleteAllTasks')
+			window.localStorage.setItem('tasks', JSON.stringify(store.state.tasks))
 		},
 	},
 	getters: {
@@ -186,13 +203,17 @@ const store = createStore({
 			return state.tasks.length
 		},
 		tasksDoneCount(state) {
-			return state.tasks.filter(function(obj) { 
-				return obj.status.done === true;
-			}).length
+			if(state.tasks != null){
+				return state.tasks.filter(function(obj) { 
+					return obj.status.done === true;
+				}).length
+			}else{
+				return 0
+			}
+
 		}
 	}
 })
-
 </script>
 
 <style>
